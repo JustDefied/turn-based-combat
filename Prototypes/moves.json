@@ -1,0 +1,29 @@
+{
+    "moves": [
+      {
+        "name": "Punch",
+        "damage": 3,
+        "mana": 0,
+      },
+      {
+        "name": "Kick",
+        "damage": 10,
+        "mana": 0,
+      },
+      {
+        "name": "Suck his dick",
+        "damage": -2,
+        "mana": 0,
+      },
+      {
+        "name": "Magic attack",
+        "damage": 6,
+        "mana": 5,
+      },
+      {
+        "name": "Heal",
+        "damage": 4,
+        "mana": 5,
+      }
+    ]
+  }
