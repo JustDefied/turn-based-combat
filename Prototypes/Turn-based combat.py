@@ -1,29 +1,30 @@
-"""In main(), currently code contains
+"""main():
     - main game loop
     - creation of Units to be in game instance
     - fixed calls to fight() #this needs to be changed and moved into a new function that decides the turns using SPEED
-    - win and lose conditions, leading to...
+    - win and lose conditions
     - play again/finish main game loop
 
 Classes:
-    - Unit()
-        - an object representing the player or an enemy, containing stats and moves
-    -TO ADD:
-        - Ability class, each ability(type?) has its own method?
-        
-v0.4.02
-Changes:
-    - cleaned up output to console
-    - mana check added as an instance method x.mana_check())
-    - added new defence, crit_chance, speed stats
-    - display_health() (previously health_stat()) is now a Unit class method
-    - split fight() into smaller functions:
-        - choose_move()
-        - display_moves()
-        - choose_target()
-    - changed how move attributes are formatted + added new attributes
+    - Unit(): an object representing the player or an enemy, containing stats and moves
 
-UPTO: GET CHOOSE TARGET TO WORK WITH DIFFERENT MOVES AND ADD NEW FUNCTIONS FOR THE MOVES
+-TO DO:
+        - Unit > Abilities > movesDict integration
+        - Ability class() #make anything that uses ability attributes in here, meaning
+            - move choose_target() into Ability class?
+                - leave dead()+kill() check in Unit class, 
+            - move check_mp() into Ability class
+
+        - create subclasses of Unit()
+        - Combat mechanics
+        
+v0.4.03
+Changes:
+    - added Unit class method remove_all(), called during restart to clear all Unit lists
+    - randint() for damage is now used in choose_target() so it runs every time
+    - Ability class() (in separate py. file) has been created.
+    
+UPTO: ABILITY CLASS
 """
 import os
 import time
@@ -57,11 +58,11 @@ def main():
                 print("\nYou win!\n")                   #
                 break                                   #
             #--------------------------------
-            time.sleep(1.0)
+            time.sleep(0.5)
             print("Computer's turn")
-            for i in range(Unit.numEnemies()):        #for each enemy
-                Unit.team_one_list[i].choose_move()               #call fight function
-                time.sleep(1)
+            for i in range(Unit.numEnemies()):          #for each enemy
+                Unit.team_one_list[i].choose_move()         #call fight function
+                time.sleep(1.0)
                 Unit.display_health()           ##display HP of all alive Units##
                 time.sleep(.5)
 
@@ -71,6 +72,7 @@ def main():
 
         #play again?
         play_again = input("Would you like to play again? [Y/N]\n>")
+        Unit.remove_all()
         if play_again.lower() == "y":
             print("\n\n\n\n\n\n RESTARTING \n")
             time.sleep(1)               #####
@@ -119,10 +121,10 @@ class Unit:
         self.crit_chance = 10       # 100% = 100
         self.speed = 12             # max speed is 20
         
-        self.movesDict = OrderedDict((('Punch',       [[1,1], randint(8,12), 0, 0]),
-                                    ('Kick',        [[1,1], randint(7,14), 2, 0]),
-                                    ('Magic bolt',  [[1,1], randint(11,16), 6, 0]),
-                                    ('Heal',        [[0], 0, 8, 10])))
+        self.movesDict = OrderedDict((('Punch',       [[1,1], [8,12], 0, 0]),
+                                        ('Kick',        [[1,1], [7,14], 2, 0]),
+                                        ('Magic bolt',  [[1,1], [11,16], 6, 0]),
+                                        ('Heal',        [[0], 0, 8, 10])))
 
         if self.team == 0:
             Unit.team_zero_list.append(self)
@@ -151,7 +153,10 @@ class Unit:
             print("{:9} HP:{:3}/{:3}        MP:{:3}/{:3}".format(enemy.name, enemy.hp, enemy.max_hp, enemy.mp, enemy.max_mp))
         print("========================\n")
 
-
+    def remove_all():
+        for l in [Unit.team_zero_list,Unit.team_one_list]:
+            l.clear()
+            del l[:]
 
     #~~~~~~~~~~~~Instance methods~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
@@ -195,18 +200,17 @@ class Unit:
         attack_who = int(input("> "))                           #choose who to attack
 
         attacked_Unit = Unit.team_one_list[attack_who-1]
-
-        damage_dealt = self.movesDict[move_name][1]
+        damage_dealt = randint(self.movesDict[move_name][1][0], self.movesDict[move_name][1][1])
 
         attacked_Unit.hp -= damage_dealt     #target loses HP
         print("You used " + move_name)
         print("{} took {} damage!\n".format(attacked_Unit.name, damage_dealt))
-        time.sleep(1.0)
         if attacked_Unit.dead():                                            #if defender dies
             print("{} is down!\n".format(attacked_Unit.name))
             Unit.kill(attacked_Unit)                                    #remove it from enemy list
             time.sleep(0.5)
-
+        time.sleep(1.0)
+        
     #takes a list of keys(str) of movesDict and displays it 
     def display_moves(self, movesList):
                 for move in movesList:                                                  #print a list of available moves from dicts
@@ -218,13 +222,13 @@ class Unit:
 
     #checks if enough mana, if enough then use that mana
     def mp_check(self, mp_required):
-        if mp_required =< self.mp:
+        if mp_required <= self.mp:
             self.mp -= mp_required
             return True
         print("Not enough MP!\n")
         return False
-    
-    #checks if hp of a unit is >0
+
+    #checks if hp of a unit is <= 0
     def dead(self):
         if self.hp <= 0:
             return True
