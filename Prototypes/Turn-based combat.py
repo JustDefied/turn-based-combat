@@ -5,24 +5,17 @@
     - win and lose conditions
     - play again/finish main game loop
 
-Classes:
-    - Unit(): an object representing the player or an enemy, containing stats and moves
 
 -TO DO:
-        - Unit > Abilities > movesDict integration
-        - Ability class() #make anything that uses ability attributes in here, meaning
-            - move choose_target() into Ability class?
-                - leave dead()+kill() check in Unit class, 
-            - move check_mp() into Ability class
-
-        - create subclasses of Unit()
+        - Abilities > abilityDict integration #as in make another file full of abilities, maybe unneeded?
+        - Units > Abilities integration:
+            - add code for abilities that use different targets in Unit.choose_target(), e.g. Heal (TARGET_TYPE = self) has no target
+            - add getters/setters for most Unit stats
         - Combat mechanics
-
-v0.4.03
-Changes:
-    - added Unit class method remove_all(), called during restart to clear all Unit lists
-    - randint() for damage is now used in choose_target() so it runs every time
-    - Ability class() (in separate py. file) has been created.
+            - 
+            -include use of unit attributes e.g. DEF, ATK as damage modifiers
+            - create sample abilities with current Unit stats and Ability attributes
+        - create subclasses of Unit() with differing stats
 
 v0.4.04 (Jono)
 Changes:
@@ -33,19 +26,33 @@ Changes:
     - comment cleanup
     - 'gui' cleanup
 
-UPTO: ABILITY CLASS
+v0.4.10 (almost)SIGNIFICANT CHANGES!
+Changes:
+    - Split main() and Unit class into seperate files
+    - started Unit and Ability class integration
+        - moved abilityDict (previously moveDict) to Ability as a class variable
+        - added Abilities.get_attr() to get the value of an ability attribute
+        - added Abilities.targeted(): Unit.choose_target() now passes targeted unit and move_chosen to it
+        - added other methods in Ability class
+            - damage calculation and attribute modifying will be handled by Ability class
+    - Added Unit stat ATK (no use yet)
+    - Modified Ability attributes (an ongoing change)
+    
+UPTO: 
 """
 import os
 import time
 from collections import OrderedDict
 from random import randint
+from Units import Unit
 
 def main():
     run_game = True
     while run_game:
 
         name = input("What is your name?\n> ")
-
+        if name == '':
+            name = 'Player'
         #initialise all Units that will be present in this game loop
         player = Unit(name, 0)
 
@@ -82,7 +89,7 @@ def main():
             if Unit.numEnemies() <= 0:                  #win condition
                 print("\nYou win!\n")                   #
                 break                                   #
-            #------------------------------------------
+  
             time.sleep(0.5)
             print("[Computer's turn]")
             for i in range(Unit.numEnemies()):         #for each enemy
@@ -106,170 +113,5 @@ def main():
             run_game = False
             print("Goodbye")
             time.sleep(1.5)
-
-#-------------------------------------------------------------------------------------
-
-"""Superclass called 'Unit' is constructed with parameters 'name' (str) and 'team' (0 for player, 1 for enemy).
-Currently has variables for name (str), HP, MAX HP, MP, and MAX MP stats (all int).
-It also has a dictionary 'movesDict' for  moves
-    - Values in 'movesDict' contain a list relating to a move's [DMG, MP cost])
-
-'name' is also used as an object's string representation
-
-Class methods
-kill(unit): removes unit from its respective team list
-numEnemies(): returns len() of enemy list (number of alive enemies)
-display_health(): Prints HP of all currently alive Units in a formatted manner.
-
-Instance methods
-x.dead(): returns True if Unit has 0 or less HP. Else returns False
-x.fight(): This function serves as the main combat system. Takes two parameters: the attacking Unit and the defending Unit
-            Currently, only simple damage-dealing type moves work.
-            If called for the player, inputs are required to complete the function.
-            If after completing the action, an enemy dies, they will be removed from the enemy list.
-            If called for an enemy, currently enemies will only use 'punch' move against the player.
-"""
-class Unit:
-    team_zero_list = []
-    team_one_list = []
-
-    def __init__(self, name, team):
-        self.name = name
-        self.team = team            #0= player , 1 = enemy
-        self.hp = 30
-        self.max_hp = 30
-        self.mp = 20
-        self.max_mp = 20
-
-        self.defence = 6            # dmg - defense = final dmg
-        self.crit_chance = 10       # 100% = 100
-        self.speed = 12             # max speed is 20
-        
-        self.movesDict = OrderedDict((('Punch',       [[1,1], [8,12], 0, 0]),
-                                      ('Kick',        [[1,1], [7,14], 2, 0]),
-                                      ('Magic bolt',  [[1,1], [11,16], 6, 0]),
-                                      ('Heal',        [[0], 0, 8, 10])))
-
-        if self.team == 0:
-            Unit.team_zero_list.append(self)
-        elif self.team == 1:
-            Unit.team_one_list.append(self)
-
-    #~~~~~~~~~~~~Class methods~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    #removes unit from its team list (only use after checking dead())
-    def kill(unit):
-        if unit.team == 0:
-            Unit.team_zero_list.remove(unit)
-        if unit.team == 1:
-            Unit.team_one_list.remove(unit)
-
-    def numEnemies():
-        return len(Unit.team_one_list)
-
-    #prints hp of all alive Units
-    def display_health():   
-        for i in range(len(Unit.team_zero_list)):
-            friendly = Unit.team_zero_list[i]
-            print("{:9} HP:{:3}/{:3}        MP:{:3}/{:3}".format(friendly.name, friendly.hp, friendly.max_hp, friendly.mp, friendly.max_mp))
-        print("========================================")
-        for i in range(len(Unit.team_one_list)):
-            enemy = Unit.team_one_list[i]
-            print("{:9} HP:{:3}/{:3}        MP:{:3}/{:3}".format(enemy.name, enemy.hp, enemy.max_hp, enemy.mp, enemy.max_mp))
-        print("========================================\n")
-
-    def remove_all():
-        for l in [Unit.team_zero_list,Unit.team_one_list]:
-            l.clear()
-            del l[:]
-
-    #~~~~~~~~~~~~Instance methods~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def __str__(self):
-        return self.name
-
-    def choose_move(self):
-        #move selection process for player turn
-        if self.team == 0:                                              #if calling unit is the player
-            movesList = []                                              #movesList is a list of keys(names) of this unit's dictionary of moves 
-            movesList.extend(list(self.movesDict.keys()))
-
-            self.display_moves(movesList)
-            #removed move_valid here for a simpler while loop
-            while True:
-                print("\n> What would you like to do?")
-                try:
-                    self_move = int(input(">"))                            #self_move is user input (int) -1 for move index
-                    if self_move in range(1,len(movesList)+1):
-                        move_name = movesList[self_move-1]                 #move_name is the name/key of chosen move (str)
-                        mana_required = self.movesDict[move_name][2]
-                        if self.mp_check(mana_required):                   #if passes mana check, move on to choose_target
-                            break
-                    else:                                                                       #if move not legit
-                        print("Please enter a number between 1-{}\n".format(len(movesList)))    #print request for legit input
-                except ValueError:
-                    print("Please enter a number between 1-{}\n".format(len(movesList)))    #print request for legit input
-            print()
-            self.choose_target(move_name)
-
-        #action for computer turn
-        else:                                                         #if computer is attacking (just do punch)
-            for i in range(3):                                        #computer
-                print(".",end="")                                     #...
-                time.sleep(0.4)                                       #delay
-            Unit.team_zero_list[0].hp -= 2                            #player loses HP
-            print("{} punched you!".format(self.name))
-            print("You took 2 damage\n")
-
-    #use TARGET attributes to get targets, make new functions for damage calculations/ability mechanics)
-    def choose_target(self, move_name):
-        #if
-        print("Who would you like to attack?")
-        for i in range(len(Unit.team_one_list)):                     #display all available targets
-            print("{}. {}".format(i+1, Unit.team_one_list[i]))
-        print()
-
-        while True:
-            try:
-                attack_who = int(input(">"))                       #choose who to attack
-                if attack_who in range(1,len(Unit.team_one_list)+1):
-                    break
-                else:
-                    print("Please enter a valid number")
-            except ValueError:
-                print("Please enter a valid number")
-
-        attacked_Unit = Unit.team_one_list[attack_who-1]
-        damage_dealt = randint(self.movesDict[move_name][1][0], self.movesDict[move_name][1][1])
-
-        attacked_Unit.hp -= damage_dealt                             #target loses HP
-        print("You used " + move_name)
-        print("{} took {} damage!\n".format(attacked_Unit.name, damage_dealt))
-        if attacked_Unit.dead():                                     #if defender dies
-            print("{} is down!\n".format(attacked_Unit.name))
-            Unit.kill(attacked_Unit)                                 #remove it from enemy list
-            time.sleep(0.5)
-        time.sleep(1.0)
-
-    #takes a list of keys(str) of movesDict and displays it 
-    def display_moves(self, movesList):
-        for move in movesList:                                                  #print a list of available moves from dicts
-            print("{}. {:15}".format(movesList.index(move) + 1, move), end='')  #
-            if self.movesDict[move][2] != 0:                                    #
-                print("MP cost: {}".format(self.movesDict[move][2]))            #
-            else:                                                               #
-                print("No cost")                                                #
-
-    #checks if enough mana, if enough then use that mana
-    def mp_check(self, mp_required):
-        if mp_required <= self.mp:
-            self.mp -= mp_required
-            return True
-        print("Not enough MP!\n")
-        return False
-
-    #checks if hp of a unit is <= 0
-    def dead(self):
-        if self.hp <= 0:
-            return True
-        return False
-
+            
 main()
