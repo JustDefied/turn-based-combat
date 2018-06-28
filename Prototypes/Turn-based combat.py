@@ -7,43 +7,38 @@
 
 -TO DO:
         - Abilities > abilityDict integration #as in make another file full of abilities, maybe unneeded?
-        - Units > Abilities integration:
-            - finish adding basic ability methods e.g. heal method
-            - add getters/setters for Unit stats (for letting abilities change unit stats safetly)
-        - Combat mechanics
+        - Ability
+            - add more ability methods e.g. unit stat changing
+            - each Ability object will need the target stored in a variable
+            - how will ability_ID work?
             - include use of unit attributes e.g. DEF, ATK as damage modifiers
-            - create sample abilities with current Unit stats and Ability attributes
-        - create subclasses of Unit() with differing stats
+        - Unit
+            - more unit stats
+            - set a maximum for unit stats (in setters) to make calculations sound
+            - create subclasses of Unit() with differing stats
 
-v0.4.10 (almost)SIGNIFICANT CHANGES!
+v0.4.90
 Changes:
-    - Split main() and Unit class into seperate files
-    - started Unit and Ability class integration
-        - moved abilityDict (previously moveDict) to Ability as a class variable
-        - added Abilities.get_attr() to get the value of an ability attribute
-        - added Abilities.targeted(): Unit.choose_target() now passes targeted unit and move_chosen to it
-        - added other methods in Ability class
-            - damage calculation and attribute modifying will be handled by Ability class
-    - Added Unit stat ATK (no use yet)
-    - Modified Ability attributes (an ongoing change)
+    - Added ability.initial_healing, 'healing' works now
+    - Ability now creates AbilityObjects, which will change the way abilities work
+        - AbilityObjects store their attributes:values in ability.AttributeValueDict
+        - AbilityObjects are stored in one queue Ability.Ability_queue and removed when finished
+    - DoT and buff abilities can be made now
+        - added LASTS ability attribute, which determines if an AbilityObject stays in Ability_queue after inital move
+        - added Ability.check_abilityList() which will decide which AbilityObject in Ability_queue are removed/procced/ignored
+        - added ability.special_sorter() to map AbilityObjects to their special methods
+        - UnitObjects store a list of buff names in self.buffs, and is displayed beside HP display
+        - made a first buff "Increase ATK"
+    - Abilities now add ATK to their base damage
+    - tidied determine_targets()
+    - tidied output to console
+    - split ability.targeted() into more simplified methods
+    - determine_targets() and select_target() are now Ability instance methods (previously Unit instance methods)
+    - re-added TARGET_NUM ability attribute (used for multiple target abilities, not fully implemented)
+    - added SPECIAL ability attribute for abilities that have special mechanics and need their own methods
+    - added getters/setters for Unit stats (some stats will only have a certain value range) which will be used by Ability methods
 
-v0.4.20 lotsa
-    - Added ability to add allies (controllable) into game
-    - More abilities can be used now
-        - Split unit.choose_target() into unit.determine_targets() and unit.select_target()
-        - Abilities with TARGET_TYPE 
-    - Multiplayer
-        - changed many methods to be able to play as both teams i.e. controlling team 2 units is possible
-        - change is_multiplayer to True to try
-    - Changed how death works
-        - added unit status x.alive (boolean) and Unit class variable lists team_zero_alive_list and team_one_alive_list
-            - x.alive: only alive units can have moves and take damage
-            - alive_lists are used for keeping track of number of alive units e.g. for win conditions
-            - changed num_units() (previously numEnemies()), can use to find len() of both teams and their alive units
-        - dead units are still kept in their team lists (for future revival abilities)
-    - changed some ABILITY ATTRIBUTES to boolean
-        - improved Ability.get_attr() to accommodate this
-UPTO: 
+UPTO: make DEF calc
 """
 import os
 import time
@@ -55,7 +50,7 @@ def main():
     run_game = True
     is_multiplayer = False
 
-    team_zero_limit = 1         #plus player
+    team_zero_limit = 2         #plus player, min should be 1
     team_one_limit = 4
 
     while run_game:
@@ -68,21 +63,21 @@ def main():
         #initialise all Units that will be present in this game loop
         player = Unit(name, 0)
 
-        #number of allies
+        #select between 0 to team_zero_limit allies, require a valid input
         while True:
             try:
-                num_allies = int(input("How many allies would you like? (Max {})\n> ".format(team_zero_limit)))
-                if num_allies in range (0,team_zero_limit+1):
+                num_allies = int(input("\nHow many allies would you like? (Max {})\n> ".format(team_zero_limit-1)))
+                if num_allies in range (0,team_zero_limit):
                     print("")
                     break
-                elif num_allies < team_zero_limit:
-                    print("Don't be a pussy ass nigga")
+                elif num_allies >= team_zero_limit:
+                    print("\nDon't be a pussy ass nigga")
                 else:
-                    print("That's not a valid number.  Try again...")
+                    print("\nThat's not a valid number.  Try again...")
             except ValueError:
-                print("That's not a valid number.  Try again...")
+                print("\nThat's not a valid number.  Try again...")
 
-        #select between 1-4 enemies, require a valid input
+        #select between 1-team_one_limit enemies, require a valid input
         while True:
             try:
                 num_enemies = int(input("How many enemies would you like to fight? (Max {})\n> ".format(team_one_limit)))
@@ -90,11 +85,11 @@ def main():
                     print("")
                     break
                 elif num_enemies == 0:
-                    print("Don't be a pussy ass nigga")
+                    print("\nDon't be a pussy ass nigga")
                 else:
-                    print("That's not a valid number.  Try again...")
+                    print("\nThat's not a valid number.  Try again...")
             except ValueError:
-                print("That's not a valid number.  Try again...")
+                print("\nThat's not a valid number.  Try again...")
 
         for i in range(num_allies):
             Unit("Ally " + str(i+1), 0)
@@ -124,7 +119,7 @@ def main():
                 break
             time.sleep(0.5)
             print("---------[Team 2's turn]---------\n")
-            for i in range(Unit.num_units(1, "all")):         #for each enemy
+            for i in range(Unit.num_units(1, "all")):         #for each unit in list 1
                 if Unit.team_one_list[i].alive:
                     if is_multiplayer:                                                 #for multiplayer. enemy units will use comp_move instead of choose_move
                         Unit.team_one_list[i].choose_move()    
@@ -135,7 +130,7 @@ def main():
                     time.sleep(.5)
 
                     if Unit.num_units(0, "alive") <= 0:               #team 1 win condition
-                        print("\nYou win!\n")                   #
+                        print("\nYou lose!\n")                   #
                         break                                   #
 
         #play again?
