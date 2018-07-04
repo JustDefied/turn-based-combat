@@ -1,5 +1,43 @@
 v1.0.0 will represent a finished work
 
+v0.6.0 + 1.1
+Changes:
+    - made ATTRIBUTE_LIST more manageable, moved attributes around, have boolean for each section so not all sections need to be filled up
+        - changed the way ability.AttributeValueDict is populated to accommodate this change
+        - ABILITY ATTRIBUTE 'MP' is now 'MP_COST' and in its own section [2]
+        - added MP_GAIN which is in REGEN section [4]
+        - added DMG_TYPE and DMG_IS_PERCENT to DAMAGE section [3]
+        - added new section BUFFS, with IS_BUFF, BUFF_STACKS, and BUFF_STATUS (BUFF_TRIGGER_ON not working yet)
+   - buff-stacking is now controlled by ability attribute BUFF_STACKS
+        - ability.check_stats will remove the earliest instance of the same buff if over stack limit
+        - this is done by the unit.buff_stacks_dict which uses BUFF_STATUS as key and stacks as value
+            - added modify_buff_stack_dict() to help modify the dict more easily
+            - added display_buff_prompts() which displays buff messages by checking which buffs are in a unit's buff_stack_dict 
+    - added ability attribute BUFF_STATUS which is a shortened indicator (str) of an ability, displayed in display_health()
+        - uses modify_buff_stack_dict to determine which statuses are shown
+    - added ability attribute BUFF_ENDS determines if a buff that is expired is removed before or after choose_move() messages
+        - modified check_Ability_queue() to be able to be used at the beginning of unit.choose_move()
+    -added ability attribute INFO, which contains info about an ability and is displayed during display_moves()
+    - added ability to go back from 'choose target' to 'choose ability' (very messy)
+    - split part of determine_targets() into a new method initial_cast() which calls cast_on_target() (formerly targeted())
+    - Seperated several combat calculation methods for more accessibilty by SPECIAL ability mechanics
+    - MP_GAIN is now managed in ability.calculate_heals() and actioned in Ability.heal_target()
+    - DEF is now included in ability.calculate_def()
+    - DODGE is now included in ability.ability_dodged() for offensive ability calculations
+    - Created new abilities
+    - created new subclasses
+        - 'Knight' (with modified stats and unique abilities)
+        - 'Thief' (with modified stats and unique abilities)
+    - main() changes
+        - put num_enemies, num_allies and play_again code blocks into their own helper functions get_num_enemies(), get_num_allies(), and play_again()
+        - turned unit initialisation code block into Unit.create_units() 
+        - No player name will default to 'Justin'
+        - Use player name 'Knight' to play as Knight and 'Thief' to play as Thief
+        - No 'num_allies' inputted will default to 0
+        - No 'num_enemies' inputted will default to 1
+    - console is now cleared after each team's turn
+    - moved per-turn dead-checking and killing into a method Unit.downed() (may change later)
+    - all unit stats have a maximum (in setter) to make calculations sound
 
 v0.4.90 +0.7
 Changes:
