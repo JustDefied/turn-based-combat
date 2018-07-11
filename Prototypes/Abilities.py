@@ -14,11 +14,11 @@ Class methods:
 
 Instance methods:
 
-    - y.build_AttributeValueDict(): populates this ability object's AttributeValueDict with its stats as key:value pairs
+    - y.build_AttrValDict(): populates this ability object's AttrValDict with its stats as key:value pairs
     - y.determine_targets(caster): determines this ability's available targets to fill target_list (using select_target(target_team) if needed)
     - y.initial_cast(target_list, caster): use cast_on_target(target, caster) for targets in target_list (also check_stacks(target) if ability is a buff), 
                                             then check_Ability_queue(self) if there are any other abilites in queue
-    - y.check_stacks(target):
+    - y.check_stacks(target): checks the stacks of the ability on the target, makes sure stack limit is not breached (this is only called by cast_on_target() if ability was successful)
     - y.select_target(target_team, caster):
     - y.cast_on_target(target, caster): Actions the ability's effects on the target 
 
@@ -38,6 +38,7 @@ All abilities should be declared in Ability_dict and should follow this format:
     OTHER [1]:      
         SPECIAL [0]     - (int) 0 if only initial methods should be used, 1 if only a special method should be used, 2 if both initial and special methods should be used
         LASTS [1]       - (int) Number of (caster) moves this ability will last for (0 for immediate expiration)
+        CAN_DODGE [2]   - (boolean) If ability can be dodged, True, else False
     MP_COST [2]
     DAMAGE [3]:           
         DMG_TYPE [0]        - (boolean) "NORMAL" or "MAGIC" if move does initial damage, False otherwise and ignore rest of section
@@ -71,38 +72,53 @@ from random import randint
 import math
 
 class Ability():
-    #ATTRIBUTE_NAME_LIST and abilityDict store data about abilities and how they work
-    ATTRIBUTE_NAME_LIST = [["TARGET_TYPE", "TARGET_ENEMY", "TARGET_NUM"], ["SPECIAL", "LASTS"], ["MP_COST"], ["DMG_TYPE", "DMG_IS_PERCENT", "DMG_BASE", "DMG_ROLL"], ["IS_HEAL", "HP_GAIN", "MP_GAIN"], ["IS_BUFF", "BUFF_TRIGGER_ON", "BUFF_ENDS",  "BUFF_STACKS", "BUFF_STATUS"], ["INFO"]] 
+    #ATTR_NAME_LIST and aDict store data about abilities and how they work
+    ATTR_NAME_LIST = [["TARGET_TYPE", "TARGET_ENEMY", "TARGET_NUM"], ["SPECIAL", "LASTS", "CAN_DODGE"], ["MP_COST"], ["DMG_TYPE", "DMG_IS_PERCENT", "DMG_BASE", "DMG_ROLL"], ["IS_HEAL", "HP_GAIN", "MP_GAIN"], ["IS_BUFF", "BUFF_TRIGGER_ON", "BUFF_ENDS",  "BUFF_STACKS", "BUFF_STATUS"], ["INFO"]] 
 #----------------make abilities here--------------------------------------------------------------------------------------------------------------------------
     x = None
-    abilityDict = OrderedDict((                                                                        
-    ('Punch',           [[1, True,  x], [False, 0], [1],  ["NORMAL", False, 0, 2],    [False],      [False],                    ["Deals ATK ± 2 damage to a target"]     ]),                             #To use an ability, it will have to be added to a unit's moveList
-    ('Dagger stab',     [[1, True,  x], [False, 0], [1],  ["NORMAL", False, 3, 1],    [False],      [False],                    ["Deals ATK + 3 ± 1 damage to a target"]     ]),                              #abilities with unique mechanics not covered by these need their own special function
+    aDict = OrderedDict((                                                                        
+    ('Punch',           [[1, True,  x], [False, 0, True], [1],  ["NORMAL", False, 0, 2],    [False],      [False],                    ["Deals ATK(±2) damage to a target"]     ]),                             #To use an ability, it will have to be added to a unit's moveList
+    ('Dagger stab',     [[1, True,  x], [False, 0, True], [1],  ["NORMAL", False, 2, 1],    [False],      [False],                    ["Deals ATK+2(±1) damage to a target"]     ]),                              #abilities with unique mechanics not covered by these need their own special function
 
-    ('Magic bolt',      [[1, True,  x], [False, 0], [6],  ["NORMAL", False, 10, 1],   [False],      [False],                    ["add MAGIC? to ignore DEF"]     ]),       #
-    ('Leech',           [[1, True,  x], [True, 0],  [15], [False],                    [False],      [False],                    ["Steal HP from an enemy"]      ]),        #
+    ('Magic bolt',      [[1, True,  x], [False, 0, True], [4],  ["NORMAL", False, 5, 2],   [False],      [False],                    ["add MAGIC? to ignore DEF"]     ]),       #
+    ('Leech',           [[1, True,  x], [True, 0, True],  [15], [False],                    [False],      [False],                    ["Steal HP from an enemy"]      ]),        #
 
-    ('Rest',            [[0, x,     x], [False, 0], [0],  [False],                    [True, 6, 6], [False],                    ["Recovers 6HP and 6MP"]  ]),       #
-    ('First aid',       [[0, x,     x], [False, 0], [9], [False],                     [True, 20, 0], [False],                   ["Recovers 20HP"]  ]),      #
-    ('Heal',            [[1, False, x], [False, 0], [10], [False],                    [True, 15, 0], [False],                   ["Target ally recovers 15HP"]  ]),        #
-    ('Heal team',       [[3, False, x], [False, 0], [16], [False],                    [True, 30, 0], [False],                   ["All units in team recover 30HP"]  ]),        #
+    ('Rest',            [[0, x,     x], [False, 0, False], [0],  [False],                    [True, 6, 6], [False],                    ["Recovers 6HP and 6MP"]  ]),       #
+    ('First aid',       [[0, x,     x], [False, 0, False], [12], [False],                     [True, 20, 0], [False],                   ["Recovers 20HP"]  ]),      #
+    ('Heal',            [[1, False, x], [False, 0, False], [8], [False],                    [True, 20, 0], [False],                   ["Target ally recovers 20HP"]  ]),        #
+    ('Heal team',       [[3, False, x], [False, 0, False], [16], [False],                    [True, 15, 0], [False],                   ["All units in team recover 15HP"]  ]),        #
 
-    ('Nuke',            [[4, x,     x], [False, 0], [30], ["NORMAL", False, 99, 0],   [False],      [False],                    ["All units are dealt 99 damage (+ ATK)"]      ]),         #
+    ('Nuke',            [[4, x,     x], [False, 0, False], [30], ["NORMAL", False, 99, 0],   [False],      [False],                    ["All units are dealt 99 damage (+ ATK)"]      ]),         #
 
-    ('Big kick',        [[3, True,  x], [False, 0], [6],  ["NORMAL", False, 0, 6],    [False],      [False],                    ["All enemy units are dealt ATK ± 6 damage"]      ]),       #
+    ('Big kick',        [[3, True,  x], [False, 0, True], [6],  ["NORMAL", False, 0, 6],    [False],      [False],                    ["All enemy units are dealt ATK ± 6 damage"]      ]),       #
 
-    ('Sharpen sword',    [[0, x,     x], [True,  2], [6],  [False],                   [False],     [True, 0, 1, 1, "+ATK"],     ["Increase own ATK by 10 for the next 2 turns"]     ]),       #
+    ('Sharpen sword',    [[0, x,     x], [True,  2, False], [6],  [False],                   [False],     [True, 0, 1, 1, "+ATK"],     ["Increase own ATK by 10 for the next 2 turns"]     ]),       #
 
-    ('Poison',          [[1, True,  x], [True,  6], [5],  [False],                    [False],      [True, 0, 0, 3, "PSN"],     ["Poisons for 5 turns, with each turn being more damaging. Stacks multiply the damage given. Stacks 3 times."]  ]),      #
+    ('Poison',          [[1, True,  x], [True,  3, True], [5],  [False],                    [False],      [True, 0, 0, 3, "PSN"],     ["Shoots a poisonous dart into the target, doing minor damage and Poisons for the next 3 turns. Additional stacks increase damage dealt. Stacks 3 times."]  ]),      #
 
-    ('Sword slash',     [[1, True,  x], [False, 0], [1],  ["NORMAL", False, 5, 4],    [False],      [False],                    ["Deals ATK + 5 ± 4 damage to a target"]     ]),
-    ('Raise shield',    [[0, x,     x], [True,  1], [2],  [False],                    [False],      [True, 0, 0, 1, "+DEF"],    ["Increase own DEF by 15 until next turn"]     ]),
-    ('Feint',           [[0, x,     x], [True,  1], [3],  [False],                    [False],      [True, 0, 0, 1, "+DODGE"],  ["Increase own DODGE by 40\%\ until next turn"]     ])
+    ('Sword slash',     [[1, True,  x], [False, 0, True], [1],  ["NORMAL", False, 3, 2],    [False],      [False],                    ["Deals ATK+3(±2) damage to a target"]     ]),
+    ('Raise shield',    [[0, x,     x], [True,  1, False], [2],  [False],                    [False],      [True, 0, 0, 1, "+DEF"],    ["Increases your DEF by 8 until your next turn"]     ]),
+    ('Feint',           [[0, x,     x], [True,  1, False], [3],  [False],                    [False],      [True, 0, 0, 1, "+DODGE"],  ["Increases your DODGE by 40% until your next turn"]     ]),
+    ('Taunt',           [[1, True,  x], [True,  3, False], [4],  [False],                    [False],      [True, 0, 0, 1, "-DEF"],    ["Decreases the target's DEF by 6 for 3 turns"]     ])
     #('Triple Kick',     [[2, True, 3],      [True, 8, 2],        6, 0, [True]]) #should attack same target three times
 
     ))
 #------------------------------------------------------------------------------------------------------------------------------------------
-    #BUFF_ATTRIBUTE_LIST = [["TYPE"], ["TARGET_TYPE", "TARGET_ENEMY", "TARGET_NUM"], ["BUFFS DICT"]
+    #any buff that modifies unit stats should an entry here, following this key/value format:
+                            # ability_name : [ [max_hp, max_mp, ATK, DEF, CRIT, DODGE],     #enter a value in the slot for the stat that will be changed, else use 0
+                            #                   casted_prompt,                               #displayed at time of casting
+                            #                   buff_action_prompt,                          #for BUFF_ENDS = 0, displayed as turn begins, 
+                            #                                                                for BUFF_ENDS = 1, displayed after turn finishes,
+                            #                   buff_reminder_prompt,                        # displayed right after display_moves()
+                            #                   end_prompt                          ]
+
+    buffDict = { "Sharpen sword" :  [0, 0, 10, 0, 0, 0],
+                'Raise shield':     [0, 0, 0, 8, 0, 0],
+                'Feint':            [0, 0, 0, 0, 0, 40], 
+                'Taunt' :           [0, 0, 0, -6, 0, 0]  }
+
+#------------------------------------------------------------------------------------------------------------------------------------------
+
 
     ability_ID_counter = 0
     Ability_queue = []          #most abilities are added, used then immediately removed, those with LASTS > 1 stay longer
@@ -115,28 +131,35 @@ class Ability():
         self.ABILITY_NAME = ability_name                                                        #used to match to special method if needed
         self.target_list = None                                                                      #the target of this ability
         self.caster = None                                                                      #the one using this ability, used in helping determine if it's a players turn
-        self.AttributeValueDict = self.build_AttributeValueDict()
-        self.turns_left = self.AttributeValueDict["LASTS"]
+        self.AttrValDict = self.build_AttrValDict()
+        self.turns_left = self.AttrValDict["LASTS"]
+
+        self.sp_val = None              #a place to store a value for this particular ability, e.g. target's DEF at time of casting
         
-        
+        self.special_mapDict = { "Sharpen sword" :  self.IncreaseATK,
+            'Raise shield': self.RaiseShield,
+            'Feint':  self.Feint, 
+            'Taunt' :  self.Taunt,
+            "Poison": self.Poison ,
+            "Leech": self.Leech          }
 #========================================Class methods===========================================================================================
-    #Uses ATTRIBUTE_NAME_LIST and ability_dict to get an index and then value of (skill_name, ATTRIBUTE_NAME)
+    #Uses ATTR_NAME_LIST and ability_dict to get an index and then value of (skill_name, ATTRIBUTE_NAME)
     #this is used when an Ability object is not refered to directly, e.g. getting MP for Unit.display_moves()
     @classmethod
     def get_attr(cls, skill_name, ATTRIBUTE_NAME):
         attribute_value = None
-        ability_attributes = Ability.abilityDict[skill_name]            #a list containing attributes' values of a particular skill
-        if ATTRIBUTE_NAME in Ability.ATTRIBUTE_NAME_LIST:                        #if ATTRIBUTE_NAME is found by first-level search,
-            index = Ability.ATTRIBUTE_NAME_LIST.index(ATTRIBUTE_NAME)                #get the index of ATTRIBUTE_NAME
-            attribute_value = ability_attributes[index]                         #and use index to get value from abilityDict
+        ability_attributes = Ability.aDict[skill_name]            #a list containing attributes' values of a particular skill
+        if ATTRIBUTE_NAME in Ability.ATTR_NAME_LIST:                        #if ATTRIBUTE_NAME is found by first-level search,
+            index = Ability.ATTR_NAME_LIST.index(ATTRIBUTE_NAME)                #get the index of ATTRIBUTE_NAME
+            attribute_value = ability_attributes[index]                         #and use index to get value from aDict
         else:                                                               #ATTRIBUTE_NAME might be found in a secondary-level LIST 
-            for attributes in Ability.ATTRIBUTE_NAME_LIST:                               #for each LIST in ATTRIBUTE_NAME_LIST, e.g. ["TARGET_TYPE", "TARGET_TEAM"]
+            for attributes in Ability.ATTR_NAME_LIST:                               #for each LIST in ATTR_NAME_LIST, e.g. ["TARGET_TYPE", "TARGET_TEAM"]
                 if isinstance(attributes, list):                                    #
                     if ATTRIBUTE_NAME in attributes:                                    #if ATTRIBUTE_NAME is found in this list
                         try:                                                                #try 
-                            index1 = Ability.ATTRIBUTE_NAME_LIST.index(attributes)                   #to get the two-level index of the ATTRIBUTE_NAME
-                            index2 = Ability.ATTRIBUTE_NAME_LIST[index1].index(ATTRIBUTE_NAME)       #
-                            attribute_value = ability_attributes[index1][index2]                #and use index to get value from abilityDict
+                            index1 = Ability.ATTR_NAME_LIST.index(attributes)                   #to get the two-level index of the ATTRIBUTE_NAME
+                            index2 = Ability.ATTR_NAME_LIST[index1].index(ATTRIBUTE_NAME)       #
+                            attribute_value = ability_attributes[index1][index2]                #and use index to get value from aDict
                         except IndexError:                                                  #if the value does not exist in that index,
                             print("The value for this ability attribute does not exist!")        #print an error message (for debugging purposes)
                             return None                                                         #continue excecution, returning attribute value of None
@@ -146,8 +169,8 @@ class Ability():
 
     #checks queue for expired abilities and removes them from queue, procs any remaining abilities (excluding current one) and -1 their turns_left, then 
     @classmethod
-    def check_Ability_queue(cls, current_ability = None, casting_unit = None):
-        if current_ability != None:
+    def check_Ability_queue(cls, current_ability = None, casting_unit = None):      
+        if current_ability != None:                                                 #if this was called with a current_ability, then it was called by initial_cast()
             if current_ability.turns_left == 0:             #if current ability was immediate, remove it from queue 
                 del Ability.Ability_queue[-1]
                 copy_queue = Ability.Ability_queue
@@ -158,21 +181,23 @@ class Ability():
                     Ability.Ability_queue.remove(ability)
                 else:                                           #else, 
                     if ability.caster == current_ability.caster:    #if the caster is the same person (i.e. ability belongs to caster)
-                        if ability.AttributeValueDict["BUFF_ENDS"] == 1:
+                        if ability.AttrValDict["BUFF_ENDS"] == 1:       #if buff 
                             ability.turns_left -= 1                         # subtract a turn from turns_left and proc the ability for each of its targets
                             for target in ability.target_list:
                                 ability.cast_on_target(target, ability.caster)# and proc it
-        elif casting_unit != None:
+                                time.sleep(0.5)
+        elif casting_unit != None:                                  #otherwise, this was called with a casting_unit, and method was called by choose_move()
             copy_queue = Ability.Ability_queue
-            for ability in copy_queue:                      #for each ability in queue (less current one)
+            for ability in reversed(copy_queue):                      #for each ability in queue (less current one)
                 if ability.turns_left == 0:                     #if expired, remove it from queue (i.e. turns_left = 0)
                     Ability.Ability_queue.remove(ability)
                 else:                                           #else, 
                     if ability.caster == casting_unit:    #if the caster is the same person (i.e. ability belongs to caster)
-                        if ability.AttributeValueDict["BUFF_ENDS"] == 0:
+                        if ability.AttrValDict["BUFF_ENDS"] == 0:
                             ability.turns_left -= 1                         # subtract a turn from turns_left and proc the ability for each of its targets
                             for target in ability.target_list:
                                 ability.cast_on_target(target, ability.caster)# and proc it
+                                time.sleep(0.5)
 
     #generic damage (no calculations) with message outputs and minimum damage of 0
     @classmethod
@@ -192,34 +217,34 @@ class Ability():
             if healed_to_max:
                 print("{} was fully healed!".format(target))
             else:
-                print("{} was healed for {} HP!".format(target, hp_gain))
+                print("{} was healed for {} health!".format(target, hp_gain))
             target.hp += hp_gain
         if mp_gain > 0:
             mp_to_max = (mp_gain + target.mp) >= target.max_mp
             if mp_to_max:
                 print("{}'s mana was fully restored!".format(target))
             else:
-                print("{} recovered {} MP!".format(target, mp_gain))
+                print("{} recovered {} mana!".format(target, mp_gain))
             target.mp += mp_gain
 #=================================Instance methods=========================================================================================
-    #populates this ability object's AttributeValueDict with its stats as key:value pairs
-    def build_AttributeValueDict(self):
+    #populates this ability object's AttrValDict with its stats as key:value pairs
+    def build_AttrValDict(self):
         built_dict = {}
-        ability_attribute_list = Ability.abilityDict[self.ABILITY_NAME]                         #list of all attribute values
-        for section in Ability.ATTRIBUTE_NAME_LIST:                                             #for each section in ATTRIBUTE_NAME_LIST
-            section_index = Ability.ATTRIBUTE_NAME_LIST.index(section)                              #store the section's index
-            if ability_attribute_list[section_index][0] == False and section_index not in [0, 1]:   #if first attribute in section is False, ignore the rest of the section
-                built_dict[section[0]] = ability_attribute_list[section_index][0]          #(unless that section is OTHER) and add that first attribute and value
+        abil_attr_list = Ability.aDict[self.ABILITY_NAME]                         #list of all attribute values
+        for section in Ability.ATTR_NAME_LIST:                                             #for each section in ATTR_NAME_LIST
+            section_index = Ability.ATTR_NAME_LIST.index(section)                              #store the section's index
+            if abil_attr_list[section_index][0] == False and section_index not in [0, 1]:   #if first attribute in section is False, ignore the rest of the section
+                built_dict[section[0]] = abil_attr_list[section_index][0]          #(unless that section is OTHER) and add that first attribute and value
             else:                                                                                   
                 for attribute in section:
                     attribute_index = section.index(attribute)
-                    built_dict[attribute] = ability_attribute_list[section_index][attribute_index]
+                    built_dict[attribute] = abil_attr_list[section_index][attribute_index]
         return built_dict
 
     #determines this ability's available targets and gets targets (using select_target() if needed) to get a target_list
-    def determine_targets(self, caster):
-        target_type = self.AttributeValueDict["TARGET_TYPE"]
-        target_is_enemy = self.AttributeValueDict["TARGET_ENEMY"]      
+    def determine_targets(self, caster, is_multiplayer = False):
+        target_type = self.AttrValDict["TARGET_TYPE"]
+        target_is_enemy = self.AttrValDict["TARGET_ENEMY"]      
 
         if target_type == 0:                                            #if TARGET_TYPE is self,        
             target_list = [caster]                                          #target_list is just the caster      
@@ -234,7 +259,7 @@ class Ability():
                 if len(target_team) == 1:                                           #and there is only one unit in target team,
                     target_list = [target_team[0]]                                      #target_list is that unit
                 else:                                                               #else:
-                    target_list = [self.select_target(target_team, caster)]             #call select_target() to get one target for target_list
+                    target_list = [self.select_target(target_team, caster, is_multiplayer)]             #call select_target() to get one target for target_list
                 if target_list == [None]:                                           #if cast_on_target returned with None,
                     return None                                                         #return to choose_move#
 
@@ -254,27 +279,27 @@ class Ability():
         self.initial_cast(target_list, caster)
         return target_list
 
-    #sets the target_list and caster for this ability, displays 'used' output, and for every target in target_list, check buff_stacks if is a buff and cast_on_target(), then check_Ability_queue() if needed
+    #sets the target_list and caster for this ability, takes MP_COST, displays 'used' output, and for every target in target_list, check buff_stacks if is a buff and cast_on_target(), then check_Ability_queue() if needed
     def initial_cast(self, target_list, caster):
         self.target_list = target_list                            #store target_list and caster in ability instance
         self.caster = caster
         print("You used {}".format(self.ABILITY_NAME))
+        caster.mp -= self.AttrValDict["MP_COST"]
         time.sleep(0.8)
         for target in target_list:                      #for every target unit
-            if self.AttributeValueDict["IS_BUFF"]:          #if this ability is a buff, then check buff stacks on target
-                self.check_stacks(target)
-            self.cast_on_target(target, caster)                   #use cast_on_target()
+            success = self.cast_on_target(target, caster)                   #use cast_on_target()
+            if self.AttrValDict["IS_BUFF"] and success == None:                         #if ability is a buff and cast was successful
+                self.check_stacks(target)                                           #check stacks for stack limits
         if len(Ability.Ability_queue) >= 2:             #if there are two or more abilities in queue,
             Ability.check_Ability_queue(current_ability = self)                 #then call check_Ability_queue to check other abilities still in queue
 
     #if the ability is not stackable or past BUFF_STACKS limit, remove the first instance of the same ability, else, add a stack to unit.buff_stack_dict
     def check_stacks(self, target):
-
-        times_stackable = self.AttributeValueDict["BUFF_STACKS"]
-        buff_status = self.AttributeValueDict["BUFF_STATUS"]
+        times_stackable = self.AttrValDict["BUFF_STACKS"]
+        buff_status = self.AttrValDict["BUFF_STATUS"]
         target.modify_buff_stack_dict("add", buff_status)                                       #add a stack initially
         if target.buff_stacks_dict[buff_status] > times_stackable:                              #if stacks is over limit,
-            print("Already reached maximum stacks!")                                                          #if this ability is NOT stackable,
+            print("MAX stacks already reached.")                                                          #if this ability is NOT stackable,
             for ability in Ability.Ability_queue:                                               #search ability queue
                 check_targets = ability.target_list                                             
                 if ability.ABILITY_NAME == self.ABILITY_NAME and target in check_targets:           #if ability has same name and target,
@@ -283,56 +308,65 @@ class Ability():
                     break
 
     #displays available targets (in targeted team and alive) and returns a unit from user input
-    def select_target(self, target_team, caster):
+    def select_target(self, target_team, caster, is_multiplayer = True):
         targets_alive = Unit.get_units("alive", target_team[0].team)
-        for target in targets_alive:
-            print("{}. {}".format(targets_alive.index(target)+1, target.name))
-        print("Who would you like to use {} on?".format(self.ABILITY_NAME))
-        while True:
-            try:
-                select_who = input("> ")                     #choose who to attack
-                if select_who == "b":                               #input b to choose another move (by returning with None)#
-                    caster.choose_move(self)
-                    return None
-                if int(select_who) in range(1,len(targets_alive)+1):             #if input number in range
-                    target = targets_alive[int(select_who)-1]
-                    if self.AttributeValueDict["IS_HEAL"]:
-                        if self.AttributeValueDict["HP_GAIN"] != 0 and target.hp >= target.max_hp:                                        
-                            print("Already at full health!")
-                        elif self.AttributeValueDict["MP_GAIN"] != 0 and target.mp >= target.max_mp:
-                            print("Already at full mana!")
+        if is_multiplayer == True:
+            for target in targets_alive:
+                print("{}. {}".format(targets_alive.index(target)+1, target.name))
+            print("Who would you like to use {} on?".format(self.ABILITY_NAME))
+            while True:
+                try:
+                    select_who = input("> ")                     #choose who to attack
+                    if select_who == "b":                               #input b to choose another move (by returning with None)#
+                        caster.choose_move(self)
+                        return None
+                    if int(select_who) in range(1,len(targets_alive)+1):             #if input number in range
+                        target = targets_alive[int(select_who)-1]
+                        if self.AttrValDict["IS_HEAL"]:
+                            if self.AttrValDict["HP_GAIN"] != 0 and target.hp >= target.max_hp:                                        
+                                print("Already at full health!")
+                            elif self.AttrValDict["MP_GAIN"] != 0 and target.mp >= target.max_mp:
+                                print("Already at full mana!")
+                            else:
+                                break
+                        else:
+                            break
                     else:
-                        break
-                else:
-                    print("Please enter a valid number or enter 'b' to go back.")
-            except ValueError:
-                print("Please enter a number or enter 'b' to go back.")
-        print()
+                        print("Please enter a valid number or enter 'b' to go back.")
+                except ValueError:
+                    print("Please enter a number or enter 'b' to go back.")
+            print()
+        else: 
+            target = targets_alive[random.randint(0,len(targets_alive)-1)]              #else comp will choose random target
         return target
 
     #Do basic mechanics using ABILITY_ATTRIBUTES to target
     def cast_on_target(self, target, caster):          
+        if not self.ability_dodged(target):                                 #if abiltiy hits (i.e. ability_dodged = not True = False)
+            if self.AttrValDict["SPECIAL"]:              #put it first in order because ..
+                success = self.special_sorter(target, caster)                           
+                if success == None:                                                                     #if success == None (i.e. not False)
+                    if self.AttrValDict["IS_BUFF"] and self.turns_left == 0:                                     #if ability was buff AND ability is expiring,,
+                        target.modify_buff_stack_dict("remove", self.AttrValDict["BUFF_STATUS"])                    #remove this buff stack
+                elif success == False:                                                                  #elif move was unsuccessful
+                    target.modify_buff_stack_dict("remove", self.AttrValDict["BUFF_STATUS"])                #remove stack that was just added in check_stacks()
 
-        if self.AttributeValueDict["SPECIAL"]:              #put it first in order because 
-            self.special_sorter(target, caster)
-
-        if self.AttributeValueDict["DMG_TYPE"] in ["NORMAL", "MAGIC"]:
-            if self.ability_dodged(target):
-                print("{} dodged the attack!".format(target.name))
-            else:
-                self.calculate_dmg(target, caster)
-                raw_damage = self.calculate_dmg(target, caster)
-                final_damage = self.calculate_def(raw_damage, target)
-                Ability.damage_target(final_damage, target)
-
+            if self.AttrValDict["DMG_TYPE"] in ["NORMAL", "MAGIC"]:
+                    self.calculate_dmg(target, caster)
+                    raw_damage = self.calculate_dmg(target, caster)
+                    final_damage = self.calculate_def(raw_damage, target)
+                    Ability.damage_target(final_damage, target)
+                
+            if self.AttrValDict["IS_HEAL"]:
+                hp_gain, mp_gain = self.calculate_heals(target)
+                Ability.heal_target(target, hp_gain, mp_gain)
             
-        if self.AttributeValueDict["IS_HEAL"]:
-            hp_gain, mp_gain = self.calculate_heals(target)
-            Ability.heal_target(target, hp_gain, mp_gain)
+        if self.AttrValDict["IS_BUFF"]:                                             #return success to signal if check_stats should be called in initial_cast()
+            return success
 
     def calculate_dmg(self, target, caster):        #uses DMG_BASE, DMG_ROLL, caster.ATK to calculate and return raw_damage
-        minDMG, maxDMG = (self.AttributeValueDict["DMG_BASE"] - self.AttributeValueDict["DMG_ROLL"],
-                            self.AttributeValueDict["DMG_BASE"] + self.AttributeValueDict["DMG_ROLL"])
+        minDMG, maxDMG = (self.AttrValDict["DMG_BASE"] - self.AttrValDict["DMG_ROLL"],
+                            self.AttrValDict["DMG_BASE"] + self.AttrValDict["DMG_ROLL"])
         raw_damage = caster.ATK + randint(minDMG,maxDMG)
         return raw_damage
 
@@ -341,46 +375,66 @@ class Ability():
         return final_damage
 
     def calculate_heals(self, target):                  #
-        hp_gain = self.AttributeValueDict["HP_GAIN"]
-        mp_gain = self.AttributeValueDict["MP_GAIN"]
+        hp_gain = self.AttrValDict["HP_GAIN"]
+        mp_gain = self.AttrValDict["MP_GAIN"]
         return hp_gain, mp_gain
 
-    def ability_dodged(self, target):
-        if random.random() < target.DODGE/100:
-            return True
+    #if CAN_DODGE = True, do dodge calculation and return True if dodged, False if hit, else if CAN_DODGE = False, always return False (ability always hits)
+    def ability_dodged(self, target):                       
+        if self.AttrValDict["CAN_DODGE"]:
+            if random.random() < target.DODGE/100:
+                print("{} dodged the attack!".format(target.name))
+                return True
+            return False
         return False
 
-#----------------------Special instance methods----------------------------------------------------
-    #Only abilities with LASTS greater than 1 or is SPECIAL access this method and section
-    #This method maps the ability to its method containing unique mechanics .... use a dictionary
+    #abilities with SPECIAL access this method to get to their special method, using special_mapDict
     def special_sorter(self, target, caster):
-        if self.ABILITY_NAME == "Sharpen sword":
-            self.IncreaseATK(target)
-        elif self.ABILITY_NAME == "Leech":
-            self.Leech(target, caster)
-        elif self.ABILITY_NAME == "Poison":
-            self.Poison(target)
-        elif self.ABILITY_NAME == "Raise shield":
-            self.RaiseShield(target)
-        elif self.ABILITY_NAME == "Feint":
-            self.Feint(target)
+        if self.ABILITY_NAME in self.special_mapDict:
+            success = self.special_mapDict[self.ABILITY_NAME](target, caster)
+            return success
+        else:
+            print("special_sorter: ABILITY DOES NOT EXIST!!!!!!!!")             #for debugging
 
-#This section contains all methods used by abilities that have unique mechanics not covered by basic ones
+    #uses values in buffDict to find which unit stats to change. Usually called twice: at initial buff, and revert at expiration
+    def buff_stat_modifier(self, add_remove, target):
+        buff_values = Ability.buffDict[self.ABILITY_NAME]
+        unit_stats = [target.max_hp, target.max_mp, target.ATK, target.DEF, target.CRIT, target.DODGE]          #HOW TO MAKE THIS WORK>>>>>>
+        for index in range(len(buff_values)-1):
+            if buff_values[index] != 0:
+                val_to_add = buff_values[index]
+                if add_remove == 'remove':
+                    val_to_add = -buff_values[index]            #if method was called to remove, make value negative
+                print("This will be added: {}".format(val_to_add))
+                if index == 0:
+                    target.max_hp += val_to_add
+                elif index == 1:
+                    target.max_mp += val_to_add  
+                elif index == 2:
+                    target.ATK += val_to_add   
+                elif index == 3:
+                    target.DEF += val_to_add    
+                elif index == 4:
+                    target.CRIT += val_to_add   
+                elif index == 5:
+                    target.DODGE += val_to_add       
 
-    #In addition to no basic mechanics, increases target (self) ATK by 10 for 2 turns (excluding this turn)         #this ability's value is hardcoded, maybe make a BUFF_VALUE attribute so it can change
-    def IncreaseATK(self, target):                                                                                  # also in future it could mean value could vary with unit stats e.g. MAGIC
-        if self.turns_left == self.AttributeValueDict["LASTS"]:      #if just cast, increase ATK by 10
-            target.ATK += 10
+#----------------------Special instance methods----------------------------------------------------
+    #This section contains all methods used by abilities that have unique mechanics not covered by basic ones
+    #
+    def IncreaseATK(self, target, caster=None):             
+        if self.turns_left == self.AttrValDict["LASTS"]:
+            self.buff_stat_modifier("add", target)
             print("Your ATK has increased by 10!")
         elif self.turns_left > 0:                                       #do nothing if in 2nd turn
-            pass
-        else:                                                           #reverse effects after last turn
-            if self.AttributeValueDict["IS_BUFF"]:
-                if self.AttributeValueDict["BUFF_TRIGGER_ON"] == 0:     
-                    target.ATK -= 10
+            print("{}'s sword gleams".format(target.name))
+        elif self.turns_left == 0:                                     #reverse effects after last turn
+            if self.AttrValDict["IS_BUFF"]:
+                if self.AttrValDict["BUFF_TRIGGER_ON"] == 0:     
+                    self.buff_stat_modifier("remove", target)
                     print("{}'s sword dims".format(target.name))
-                    target.modify_buff_stack_dict("remove", self.AttributeValueDict["BUFF_STATUS"])
 
+    #
     def Leech(self, target, caster):
         damage = caster.ATK + 5 - target.DEF + randint(0, 6)
         if damage < 0:
@@ -388,47 +442,63 @@ class Ability():
             caster.hp += damage
             print("{} leeched {} health from {}!".format(caster.name, damage, target.name))       
         else:
-            print("{} was unable to leech health from {}!".format(caster.name, damage, target.name))   
+            print("{} was unable to leech health from {}!".format(caster.name, target.name))   
 
-    def Poison(self, target):                                                      # each part happens IN the caster's turns
-        damage = 2 - math.floor(target.DEF / 3)  
-        if damage < 0:    
-            x, y, z = (0, 0, 0)
-        else:
-            x, y, z = (damage, damage + 2, damage + 4)
-        if self.turns_left == self.AttributeValueDict["LASTS"]:  
-            target.hp -= x
-            print("{} took {} damage from a poison dart!".format(target.name, x))     
-        elif self.turns_left > 0:                                    
-            y_final = y * target.buff_stacks_dict["PSN"]
-            target.hp -= y_final 
-            print("{} took {} damage from poisoning!".format(target.name, y_final))     
-        elif self.turns_left == 0:
-            z_final = z * target.buff_stacks_dict["PSN"]
-            target.hp -= z_final
-            print("{} took {} damage from poisoning!".format(target.name, z_final))     
-        else: 
-            if self.AttributeValueDict["IS_BUFF"]:
-                if self.AttributeValueDict["BUFF_TRIGGER_ON"] == 0:      
-                    print("{} recovered from Poison".format(target.name))
-                    target.modify_buff_stack_dict("remove", self.AttributeValueDict["BUFF_STATUS"])
+    #
+    def Poison(self, target, caster=None):          
+        if self.turns_left == self.AttrValDict["LASTS"]:
+            self.sp_val = target.DEF
+        damage = 2 - math.floor(self.sp_val / 2)                                                 #base damage minus half of target's DEF                                                                                       #else three different damages
+        x, y, z = (damage, damage + 3, damage + 2)
+        if self.turns_left == self.AttrValDict["LASTS"]:                                         #if just cast, do inital dart damage
+            if damage <= 0:                                                                              #if damage is 0 or less,
+                print("The poison dart bounced off {}... his defense is too high!".format(target.name))       #ability fails, rmove buff stack and ability from queue
+                del Ability.Ability_queue[-1]
+                return False
+            else:
+                target.hp -= x
+                print("{} took {} damage from a poison dart!".format(target.name, x))   
+        elif self.turns_left > 0:                                                                      #elif in middle of buff, do poison dmg x stacks
+            if self.AttrValDict["BUFF_STATUS"] in target.buff_stacks_dict:         
+                y = y * target.buff_stacks_dict["PSN"]
+            target.hp -= y 
+            print("{} took {} damage from poisoning! {} ".format(target.name, y, caster.name))                               
+        elif self.turns_left == 0:                                                                       #elif last turn, do slightly less poison dmg x stacks
+            if self.AttrValDict["BUFF_STATUS"] in target.buff_stacks_dict:   
+                z = z * target.buff_stacks_dict["PSN"]
+            target.hp -= z
+            print("{} took {} damage from poisoning! {}".format(target.name, z, caster.name))     
+            if target.buff_stacks_dict[self.AttrValDict["BUFF_STATUS"]] == 1:                          #if about to lose last stack,
+                print("{} has recovered from Poison.".format(target.name))
+            else:
+                print("{} is recovering from Poison.".format(target.name))                                     #else if still stacks remaining, target is recovering
 
-    def RaiseShield(self, target):                                                                                  # also in future it could mean value could vary with unit stats e.g. MAGIC
-        if self.turns_left == self.AttributeValueDict["LASTS"]:      #if just cast, increase ATK by 10
-            target.DEF += 15
-            print("Your DEF has increased by 15!")
-        else:                                                           #reverse effects in last turn
-            target.DEF -= 15
-            print("{} lowers their shield".format(target.name))
-            target.modify_buff_stack_dict("remove", self.AttributeValueDict["BUFF_STATUS"])
-
-    def Feint(self, target):                                                                                  # also in future it could mean value could vary with unit stats e.g. MAGIC
-        if self.turns_left == self.AttributeValueDict["LASTS"]:      #if just cast, increase ATK by 10
-            target.DODGE += 60
-            print("Your DODGE has increased by 60%!")
+    #
+    def RaiseShield(self, target, caster=None):                                                                                  
+        if self.turns_left == self.AttrValDict["LASTS"]:      #if just cast, increase DEF by 8
+            self.buff_stat_modifier("add", target)
+            print("Your DEF has increased by 8!")
         elif self.turns_left == 0:                                                           #reverse effects in last turn
-            target.DEF -= 60
-            print("{} takes a steady stance. Your DODGE returns to normal.".format(target.name))
-            target.modify_buff_stack_dict("remove", self.AttributeValueDict["BUFF_STATUS"])
+            self.buff_stat_modifier("remove", target)
+            print("{} lowers his shield".format(target.name))
 
-from Units import Unit, Unit_Knight, Unit_Thief
+    #
+    def Feint(self, target, caster=None):                                                                                  # also in future it could mean value could vary with unit stats e.g. MAGIC
+        if self.turns_left == self.AttrValDict["LASTS"]:      #if just cast, increase ATK by 10
+            self.buff_stat_modifier("add", target)
+            print("{}'s DODGE has increased by 60%!".format(target.name))
+        elif self.turns_left == 0:                                                        #reverse effects in last turn
+            self.buff_stat_modifier("remove", target)
+            print("{} takes a steady stance. His DODGE returns to normal.".format(target.name))
+
+    #
+    def Taunt(self, target, caster=None):                                                                                  
+        if self.turns_left == self.AttrValDict["LASTS"]:      #if just cast, 
+            self.buff_stat_modifier("add", target)
+            print("{}'s DEF has decreased by 6!".format(target.name))
+        elif self.turns_left == 0:                                                           #reverse effects in last turn
+            self.buff_stat_modifier("remove", target)
+            print("{} regains his composure. His DEF returns to normal".format(target.name))
+
+
+from Units import Unit, Unit_Knight, Unit_Thief, Unit_Priest

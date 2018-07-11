@@ -1,5 +1,28 @@
 v1.0.0 will represent a finished work
 
+v0.6.2 + 0.2
+Changes:
+    Units:
+    - added randomized names for all created units (names_list in Unit.create_units())
+    - moved mp usage into unit.initial_cast() so that it is only taken if cast is successful
+    Abilities:
+    - shortened some variable names in Ability
+        - AttributeValueDict > AttrValDict
+        - ATTRIBUTE_NAME_LIST > ATTR_NAME_LIST
+        - ability_dict > aDict
+    - changed check_Ability_queue() so that it procs abilities in reverse (so all buffs proc before the oldest can be removed)
+    - ability.check_stacks() is now only called if the ability is successful (this only applies to buffs)
+    - unit.modify_buff_stacks_dict is now only used at two points, in check_stacks() (called by inital_cast()), and in cast_on_target() if ability expires
+    - added ability attribute CAN_DODGE in 'others' section, which signifies if dodge should be considered (ability_dodged() is called regardless, but will return False if CAN_DODGE = False)
+    - ability.special_mapDict now maps abilities to their respective methods
+    - added ability.buff_stat_modifier() which takes values from Ability.buffDict to modify unit stats  
+    - removed unit.comp_move(), computer will now use choose_move()
+        - is_multiplayer will decide whether team 2 is user or computer
+        - computer goes through same method calls (with altered blocks)
+        - computer will currently always choose moveList's index 1 move and a random enemy
+    - changed when display_health() is used (once at beginning of choose_move, once at the end)
+    - user is required to press enter after every move (otherwise text moves too fast) 
+
 v0.6.0 + 1.1
 Changes:
     - made ATTRIBUTE_LIST more manageable, moved attributes around, have boolean for each section so not all sections need to be filled up
