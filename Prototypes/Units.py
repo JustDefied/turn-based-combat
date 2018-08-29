@@ -17,6 +17,7 @@ Instance methods
     - x.display_buff_prompts(): displays prompts for buffs in buff_stacks_dict                              #needs work
     - x.modify_buff_stack_dict(add_or_remove, buff_name): simple dict entry adder/remover used by ability.check_stacks and special methods (for removing buff on expiration)
 """
+import os
 import copy
 import time
 from collections import OrderedDict
@@ -25,14 +26,15 @@ from random import randint
 
 
 class Unit:
+
+    className = "Thug"
+    player_name = "Player"
     team_zero_list = []
     team_zero_alive_list = []
     team_one_list = []
     team_one_alive_list = []
     all_units_list = [team_zero_list, team_one_list]
     all_alive_units_list = [team_zero_alive_list, team_one_alive_list]
-
-
 
     def __init__(self, name, team):
         self.name = name
@@ -55,6 +57,12 @@ class Unit:
 
         self.movesList = ["Rest", "Punch", 'First aid']
 
+        self.target_Ability_queue = []                   #a list that contains all current abilities this unit is a target of
+
+        ##ability specific attributes
+        self.PSN_dmg = 0
+        self.PSN_count = 0
+
         if self.team == 0:
             Unit.team_zero_list.append(self)
             Unit.team_zero_alive_list.append(self)
@@ -62,31 +70,36 @@ class Unit:
             Unit.team_one_list.append(self)
             Unit.team_one_alive_list.append(self)
 
+    def __str__(self):
+        return self.name + " the " + Unit.className
+
 #~~~~~~~~~~~~Class methods~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #initialise all Units that will be present in this game loop
     @classmethod
-    def create_units(cls, player_name, num_allies, num_enemies):
+    def create_units(cls,units_to_create, team):
+
+        team_name = ["your team", "the enemy team"]
 
         names_list = ["John", "George", "Geoffrey", "Simon", "Gerrard", "Henry", "Tobias", "Dodd", "Norman", "Roland" , 'Amon', 'Daniel', "Richard", "Amos", "Charles",
                         "Cedrick"]
 
-        if player_name == '':
-            player_name = 'Justin'
+        abb_to_class = {'T': Unit, 'P' : Unit_Priest, 'K' : Unit_Knight, 'TH': Unit_Thief}
+        if Unit.player_name == '':
+            Unit.player_name = 'Justin'
 
-        if player_name == 'Knight':
-            player = Unit_Knight(player_name + " the Knight", 0)
-        elif player_name == 'Thief':
-            player = Unit_Thief(player_name + " the Thief", 0)
-        elif player_name == 'Priest':
-            player = Unit_Priest(player_name + " the Priest", 0)
-        else:
-            player = Unit(player_name + " the Thug", 0)
-
-        for i in range(num_allies):
-            Unit_Thief( names_list.pop(random.randint(0, len(names_list)-1)) + " the Thief", 0)
-
-        for i in range(num_enemies):
-            Unit_Knight(names_list.pop(random.randint(0, len(names_list)-1)) + " the Knight", 1)
+        #if player_name == 'Knight':
+            #player = Unit_Knight(player_name + " the Knight", 0)
+        print()
+        for i in range(len(units_to_create)):
+            if team == 0 and i == 0:
+                name = Unit.player_name
+            else:
+                name = names_list.pop(random.randint(0, len(names_list)-1))
+            created_unit = abb_to_class[units_to_create[i]](name, team)
+            print("{} has joined {}!".format(str(created_unit), team_name[team]))
+            time.sleep(0.3)
+        input("\nPress <ENTER> to continue...")
+        os.system('cls')
 
     #returns len() of a team_list or team_alive_list using parameters team = 0, 1, all_alive = "all", "alive"
     @classmethod
@@ -118,7 +131,7 @@ class Unit:
 
     #removes unit from its team alive_list (use after checking is_dead())
     @classmethod
-    def remove_unit(cls, unit):
+    def kill_unit(cls, unit):
         if unit.team == 0:
             Unit.team_zero_alive_list.remove(unit)
         if unit.team == 1:
@@ -127,26 +140,26 @@ class Unit:
     #prints hp of all alive Units
     @classmethod
     def display_health(cls):   
+
+        def display(unit):
+            print("{:20} HP:{:3}/{:3}    MP:{:3}/{:3}  ".format(str(unit), unit.hp, unit.max_hp, unit.mp, unit.max_mp), end='')
+            for buff in unit.buff_stacks_dict.keys():
+                print(" " + buff, end='')
+                if unit.buff_stacks_dict[buff] > 1:
+                    print("x" + str(unit.buff_stacks_dict[buff]), end='')
+            print()
+
         print("\n=============================================")
         for i in range(len(Unit.team_zero_list)):
             ally = Unit.team_zero_list[i]
-            print("{:20} HP:{:3}/{:3}    MP:{:3}/{:3}  ".format(ally.name, ally.hp, ally.max_hp, ally.mp, ally.max_mp), end='')
-            for buff in ally.buff_stacks_dict.keys():
-                print(" " + buff, end='')
-                if ally.buff_stacks_dict[buff] > 1:
-                    print("x" + str(ally.buff_stacks_dict[buff]), end='')
-            print()
+            display(ally)
         print("-----------------------------------------------")
         for i in range(len(Unit.team_one_list)):
             enemy = Unit.team_one_list[i]
-            print("{:20} HP:{:3}/{:3}    MP:{:3}/{:3}  ".format(enemy.name, enemy.hp, enemy.max_hp, enemy.mp, enemy.max_mp), end='')
-            for buff in enemy.buff_stacks_dict.keys():
-                print(" " + buff, end='')
-                if enemy.buff_stacks_dict[buff] > 1:
-                    print("x" + str(enemy.buff_stacks_dict[buff]), end='')
-            print()
+            display(enemy)
         print("=============================================\n")
         time.sleep(1.0)
+
 
     @classmethod
     def remove_all(cls):
@@ -154,33 +167,33 @@ class Unit:
             l.clear()
             del l[:]
 
-    # checks all units, if unit is_dead(), call remove_unit() ##MAYBE CHANGE
+    # checks all units, if unit is_dead(), call kill_unit() (MAYBE CHANGE) and Ability.clear_target()
     @classmethod
     def downed(cls):
         for team in Unit.all_units_list:
             for unit in team:
                 if unit.is_dead():
                     if unit in Unit.team_one_alive_list or unit in Unit.team_zero_alive_list:                        
-                        Unit.remove_unit(unit)
+                        Unit.kill_unit(unit)
                         time.sleep(0.4)
-                        print("{} is down!\n".format(unit.name))                            
+                        print("{} is down!\n".format(str(unit)))       
+                        Ability.clear_target(unit)                     
 
 #~~~~~~~~~~~~Instance methods~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def __str__(self):
-        return self.name
 
     #acquire valid move from user, then create an Ability object and put in Ability.Ability_queue, then call object.determine_targets() through that object
     def choose_move(self, calling_ability=None, is_multiplayer = True):
         move_id_counter = 0
         if calling_ability != None:
             Ability.Ability_queue.remove(calling_ability)
+            self.target_Ability_queue.remove(calling_ability)
         Ability.check_Ability_queue(casting_unit = self)
         Unit.display_health()                   #display HP of all alive Units
         Unit.downed()                          #confirm any dead units at this point
         if Unit.num_units(1 - self.team, "alive") <= 0:                 #check win condition for this unit's team,
             return                                                          #if true, return
 
-        print("  ------ {}'s move ------------------------------".format(self.name))
+        print("  ------ {}'s move ------------------------------".format(str(self)))
         time.sleep(0.8)
 
         if is_multiplayer == True:
@@ -205,15 +218,15 @@ class Unit:
             move_name = self.movesList[1] 
         current_Ability = Ability(move_name, Ability.ability_ID_counter)    #create Ability object
         Ability.Ability_queue += [current_Ability]                          #add it to the queue
-        print()
+        self.target_Ability_queue += [current_Ability]
         target_list = current_Ability.determine_targets(self, is_multiplayer)               #call ability's determine_targets
         if target_list == None:                       
             return
         Unit.downed()
         time.sleep(0.6)
         Unit.display_health()                  #display HP of all alive Units
-        time.sleep(0.2)
-        input("\n<Press ENTER to continue>\n")
+        input("<Press ENTER to continue>\n")
+        os.system('cls')
 
     #Displays a unit's moveList
     def display_moves(self, movesList):
@@ -243,7 +256,7 @@ class Unit:
     def display_buff_prompts(self):                ###############################################################
         print()
         if "+ATK" in self.buff_stacks_dict:
-            print("{}'s sword gleams".format(self.name))
+            print("{}'s sword gleams".format(str(self)))
 
 
     def modify_buff_stack_dict(self, add_or_remove, buff_name):
@@ -259,7 +272,8 @@ class Unit:
                 else:                                                           #else there is only one, so remove the entry
                     del self.buff_stacks_dict[buff_name]
             else:
-                print("no {} to delete in {}'s buff_stack_dict".format(buff_name, self.name))               #for debugging
+                pass
+                #print("no {} to delete in {}'s buff_stack_dict".format(buff_name, str(self)))               #for debugging
 
 #===================setters and getters for Unit object stats======================
     @property
@@ -326,8 +340,8 @@ class Unit:
     def ATK(self, val):
         if val < 0:
             self._ATK = 0
-        elif val > 100:
-            self._ATK = 100
+        #elif val > 100:
+            #self._ATK = 100
         else:
             self._ATK = val
     #--------------------------
@@ -339,10 +353,23 @@ class Unit:
     def DEF(self, val):
         if val < 0:
             self._DEF = 0
-        elif val > 100:
-            self._DEF = 100
+        #elif val > 100:
+            #self._DEF = 100
         else:
             self._DEF = val
+    #--------------------------
+    @property
+    def MAGIC(self):
+        return self._MAGIC
+
+    @MAGIC.setter
+    def MAGIC(self, val):
+        if val < 0:
+            self._MAGIC = 0
+        #elif val > 100:
+            #self._MAGIC = 100
+        else:
+            self._MAGIC = val
     #--------------------------
     @property
     def CRIT(self):
@@ -352,8 +379,8 @@ class Unit:
     def CRIT(self, val):
         if val < 0:
             self._CRIT = 0
-        elif val > 100:
-            self._CRIT = 100
+        #elif val > 100:
+            #self._CRIT = 100
         else:
             self._CRIT = val
     #--------------------------
@@ -365,8 +392,8 @@ class Unit:
     def DODGE(self, val):
         if val < 0:
             self._DODGE = 0
-        elif val > 100:
-            self._DODGE = 100
+        #elif val > 100:
+        #    self._DODGE = 100
         else:
             self._DODGE = val
     #--------------------------
@@ -391,13 +418,31 @@ class Unit:
     def alive(self, val):
         self._alive = val
     #--------------------------
+    @property
+    def PSN_dmg(self):
+        return self._PSN_dmg
 
+    @PSN_dmg.setter
+    def PSN_dmg(self, val):
+        self._PSN_dmg = val
+    #--------------------------
+    @property
+    def PSN_count(self):
+        return self._PSN_count
+
+    @PSN_count.setter
+    def PSN_count(self, val):
+        self._PSN_count = val
+    #--------------------------
 ##################### Unit sub-classes #########################################
 
 class Unit_Knight(Unit):
 
+    className = "Knight"
+
     def __init__(self, name, team):
         super().__init__(name, team)
+
 
         self.max_hp = 100
         self.max_mp = 15
@@ -406,15 +451,20 @@ class Unit_Knight(Unit):
 
         self.ATK = 15
         self.DEF = 7            # dmg - defense = final dmg
-        self._MAGIC = 0
-        self._MAGIC_DEF = 0 
+        self.MAGIC = 0
+        self.MAGIC_DEF = 0 
         self.CRIT = 10          # /100%
         self.DODGE = 1          # /100%
         self.SPEED = 6         # max speed is 20
 
         self.movesList = ["Rest", "Sword slash", 'Raise shield', 'Sharpen sword']
 
+    def __str__(self):
+        return self.name + " the " + Unit_Knight.className
+
 class Unit_Thief(Unit):
+
+    className = "Thief"
 
     def __init__(self, name, team):
         super().__init__(name, team)
@@ -426,15 +476,20 @@ class Unit_Thief(Unit):
 
         self.ATK = 12
         self.DEF = 2            # dmg - defense = final dmg
-        self._MAGIC = 6
-        self._MAGIC_DEF = 2 
+        self.MAGIC = 2
+        self.MAGIC_DEF = 2 
         self.CRIT = 25          # /100%
         self.DODGE = 15          # /100%
         self.SPEED = 16         # max speed is 20
 
         self.movesList = ["Rest", "Dagger stab", 'Feint', 'Poison', 'Taunt']
 
+    def __str__(self):
+        return self.name + " the " + Unit_Thief.className
+
 class Unit_Priest(Unit):
+
+    className = "Priest"
 
     def __init__(self, name, team):
         super().__init__(name, team)
@@ -446,14 +501,15 @@ class Unit_Priest(Unit):
 
         self.ATK = 7
         self.DEF = 0            # dmg - defense = final dmg
-        self._MAGIC = 14
-        self._MAGIC_DEF = 9 
+        self.MAGIC = 12
+        self.MAGIC_DEF = 9 
         self.CRIT = 5          # /100%
         self.DODGE = 5          # /100%
         self.SPEED = 10         # max speed is 20
 
         self.movesList = ["Rest", "Magic bolt", 'Heal', 'Heal team']
 
-
+    def __str__(self):
+        return self.name + " the " + Unit_Priest.className
 
 from Abilities import Ability

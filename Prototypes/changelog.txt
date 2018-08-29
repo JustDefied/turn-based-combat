@@ -1,5 +1,26 @@
 v1.0.0 will represent a finished work
 
+
+v0.6.3 + 0.1
+Changes:
+    - replaced unit creation process
+        - removed get_num_allies() and get_num_enemies(), replaced by get_team()
+        - get_team gets input string of units (represented by abbreviated class names) to be created and is called once for each team
+    - added string representation for units
+        - use str(unit) for "(name) the (class)" or unit.name for "(name)" only
+    - minor changes to some output text
+    - removed limits on some unit stats (via setters)
+    - added Ability.clear_target()
+        - called in Unit.downed(), finds every ability that targets the downed unit and calls remove_ability() on them
+    - added Ability.remove_ability()
+        - removes an ability's buff indicator (in unit's stack dict), reverts its effects, and removes the ability from queue 
+        - stat-modifying buffs that go over their stack limit will have their effect added, and the oldest in the stack will revert its effect and be removed
+    - Poison slightly reworked
+        - two instance variables added in Units, PSN_DMG and PSN_count to help keep track of poison damage (still needs to use unit.target_Ability_queue)
+    - some abilities are now "MAGIC" damage type, and rather than using target's DEF to lower damage, target's MAGIC is used instead
+        - added MAGIC setter/getter
+
+
 v0.6.2 + 0.2
 Changes:
     Units:
