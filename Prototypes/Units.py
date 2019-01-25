@@ -96,10 +96,8 @@ class Unit:
             else:
                 name = names_list.pop(random.randint(0, len(names_list)-1))
             created_unit = abb_to_class[units_to_create[i]](name, team)
-            print("{} has joined {}!".format(str(created_unit), team_name[team]))
+            print("+ {} has joined {}!".format(str(created_unit), team_name[team]))
             time.sleep(0.3)
-        input("\nPress <ENTER> to continue...")
-        os.system('cls')
 
     #returns len() of a team_list or team_alive_list using parameters team = 0, 1, all_alive = "all", "alive"
     @classmethod
@@ -142,23 +140,23 @@ class Unit:
     def display_health(cls):   
 
         def display(unit):
-            print("{:20} HP:{:3}/{:3}    MP:{:3}/{:3}  ".format(str(unit), unit.hp, unit.max_hp, unit.mp, unit.max_mp), end='')
+            print("        {:20} HP:{:3}/{:3}    MP:{:3}/{:3}  ".format(str(unit), unit.hp, unit.max_hp, unit.mp, unit.max_mp), end='')
             for buff in unit.buff_stacks_dict.keys():
                 print(" " + buff, end='')
                 if unit.buff_stacks_dict[buff] > 1:
                     print("x" + str(unit.buff_stacks_dict[buff]), end='')
             print()
 
-        print("\n=============================================")
+        print("\n       ===============================================")
         for i in range(len(Unit.team_zero_list)):
             ally = Unit.team_zero_list[i]
             display(ally)
-        print("-----------------------------------------------")
+        print("        -----------------------------------------------")
         for i in range(len(Unit.team_one_list)):
             enemy = Unit.team_one_list[i]
             display(enemy)
-        print("=============================================\n")
-        time.sleep(1.0)
+        print("       ===============================================\n")
+        #time.sleep(1.0)
 
 
     @classmethod
@@ -193,7 +191,7 @@ class Unit:
         if Unit.num_units(1 - self.team, "alive") <= 0:                 #check win condition for this unit's team,
             return                                                          #if true, return
 
-        print("  ------ {}'s move ------------------------------".format(str(self)))
+        print("    -------------- {}'s move --------------".format(str(self)))
         time.sleep(0.8)
 
         if is_multiplayer == True:
@@ -225,7 +223,7 @@ class Unit:
         Unit.downed()
         time.sleep(0.6)
         Unit.display_health()                  #display HP of all alive Units
-        input("<Press ENTER to continue>\n")
+        input("Press <ENTER> to continue...\n")
         os.system('cls')
 
     #Displays a unit's moveList
@@ -256,7 +254,7 @@ class Unit:
     def display_buff_prompts(self):                ###############################################################
         print()
         if "+ATK" in self.buff_stacks_dict:
-            print("{}'s sword gleams".format(str(self)))
+            print("{}'s sword is razor sharp".format(str(self)))
 
 
     def modify_buff_stack_dict(self, add_or_remove, buff_name):
@@ -447,7 +445,7 @@ class Unit_Knight(Unit):
         self.max_hp = 100
         self.max_mp = 15
         self.hp = 100                    #cannot surpass max_hp (stops at max in setter method)
-        self.mp = 15                    #cannot surpass max_mp (stops at max in setter method)
+        self.mp = 20                    #cannot surpass max_mp (stops at max in setter method)
 
         self.ATK = 15
         self.DEF = 7            # dmg - defense = final dmg

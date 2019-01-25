@@ -96,7 +96,7 @@ class Ability():
 
     ('Poison',          [[1, True,  x], [True,  4, True], [5],  [False],                    [False],      [True, 0, 0, 3, "PSN"],     ["Shoot a poisonous dart into the target, doing minor damage and Poisoning them for the next 4 turns. Additional stacks increase damage dealt. Stacks 3 times."]  ]),      #
 
-    ('Sword slash',     [[1, True,  x], [False, 0, True], [1],  ["NORMAL", False, 3, 2],    [False],      [False],                    ["Deal ATK+3(±2) damage to a target"]     ]),
+    ('Sword slash',     [[1, True,  x], [False, 0, True], [1],  ["NORMAL", False, 6, 3],    [False],      [False],                    ["Deal ATK+6(±3) damage to a target"]     ]),
     ('Raise shield',    [[0, x,     x], [True,  1, False], [2],  [False],                    [False],      [True, 0, 0, 1, "+DEF"],    ["Increase your DEF by 8 until your next turn"]     ]),
     ('Feint',           [[0, x,     x], [True,  2, False], [3],  [False],                    [False],      [True, 0, 0, 1, "+DODGE"],  ["Increase your DODGE by 60% for the next 2 turns"]     ]),
     ('Taunt',           [[1, True,  x], [True,  2, False], [4],  [False],                    [False],      [True, 0, 0, 1, "-DEF"],    ["Decrease the target's DEF by 6 for 2 turns"]     ])
@@ -315,12 +315,10 @@ class Ability():
     def initial_cast(self, target_list, caster):
         self.target_list = target_list                            #store target_list and caster in ability instance
         self.caster = caster
-        if self.AttrValDict["TARGET_TYPE"] ==  0:
-            print("{} used {} on themself".format(caster.name, self.ABILITY_NAME))
-        elif self.AttrValDict["TARGET_TYPE"] == 1:
-            print("{} used {} on {}".format(caster.name, self.ABILITY_NAME, str(self.target_list[0])))
+        if self.AttrValDict["TARGET_TYPE"] == 1:
+            print("{} used {} on {}!".format(caster.name, self.ABILITY_NAME, str(self.target_list[0])))
         else:
-            print("{} used {}".format(caster.name, self.ABILITY_NAME))
+            print("{} used {}!".format(caster.name, self.ABILITY_NAME))
         caster.mp -= self.AttrValDict["MP_COST"]
         time.sleep(0.8)
         for target in target_list:                      #for every target unit
@@ -477,14 +475,14 @@ class Ability():
     def IncreaseATK(self, target, caster=None):             
         if self.turns_left == self.AttrValDict["LASTS"]:
             self.buff_stat_modifier("add", target)
-            print("{}'s ATK has increased by 10!".format(str(target)))
+            print("{} whets his sword until it is razor sharp (ATK +10)".format(str(target)))
         elif self.turns_left > 0:                                       #do nothing if in 2nd turn
-            print("{}'s sword gleams".format(str(target)))
+            print("{}'s sword is still sharp".format(str(target)))
         elif self.turns_left == 0:                                     #reverse effects after last turn
             if self.AttrValDict["IS_BUFF"]:
                 if self.AttrValDict["BUFF_TRIGGER_ON"] == 0:     
                     self.buff_stat_modifier("remove", target)
-                    print("{}'s sword dims".format(str(target)))
+                    print("{}'s sword dulls (ATK -10)".format(str(target)))
 
     #
     def Leech(self, target, caster):

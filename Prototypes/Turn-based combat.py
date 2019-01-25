@@ -77,19 +77,20 @@ is_multiplayer = False      #lets both teams be controlled
 def main(team_zero_limit, team_one_limit, is_multiplayer):
     run_game = True
     while run_game:
-        #get player name input
+        #get player name and teams
         Unit.player_name = input("What is your name?\n> ")
         time.sleep(0.2)
+        print("------------------------[TEAM CREATION]------------------------")
         get_team(team_zero_limit, 0)
         get_team(team_one_limit, 1)
-        
+
         input("\n<Press ENTER to start the battle>\n")
         os.system('cls')
         #begin battle while loop, stop loop when all of one team is dead
         while  Unit.num_units(0, "alive") > 0 and Unit.num_units(1, "alive") > 0:
             for unit in Unit.get_units("all", 0):       #for each unit in team_zero
                 if unit.alive:                              #if unit is alive
-                    print("-----------[Team 1's turn]-----------")
+                    print("-----------------------[Team 1's turn]-----------------------")
                     unit.choose_move()                      #call its choose_move function
 
                     #team 0 win condition
@@ -102,7 +103,7 @@ def main(team_zero_limit, team_one_limit, is_multiplayer):
             for unit in Unit.get_units("all", 1):         #for each unit in list 1
                 
                 if unit.alive:
-                    print("-----------[Team 2's turn]-----------")
+                    print("-----------------------[Team 2's turn]-----------------------")
                     unit.choose_move(is_multiplayer = is_multiplayer)    
 
                     if Unit.num_units(0, "alive") <= 0:        #team 1 win condition
@@ -114,12 +115,12 @@ def main(team_zero_limit, team_one_limit, is_multiplayer):
 
 def get_team(team_limit, team):
     valid_classes = ['T', 'P', 'K', 'TH']
-    say = ['your team','the enemy team']
-    print("Please create {}. Team limit is {}.\n\n\
-    Available classes:\n\
-    T  = Thug           K  = Knight\n\
-    P  = Priest         TH = Thief\n".format(say[team], team_limit))
-    print("e.g. For a team of 2 Knights and 1 Priest: P K K\n")
+    say = ['YOUR TEAM','ENEMY TEAM']
+    print("\n========== {} ==========\n  ====== Team limit: {} ======\n\n\
+        Available classes:\n\
+  T  = Thug           K  = Knight\n\
+  P  = Priest         TH = Thief\n".format(say[team], team_limit))
+    print("e.g. To create a team of 2 Knights and 1 Priest, use: P K K\n")
 
     valid = False
     while not valid:
